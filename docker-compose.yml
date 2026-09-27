@@ -51,18 +51,6 @@ services:
       timeout: 5s
       retries: 20
 
-  phpmyadmin:
-    image: phpmyadmin:latest
-    restart: unless-stopped
-    depends_on:
-      - db
-    ports:
-      - "8081:80"
-    environment:
-      PMA_HOST: db
-      PMA_USER: root
-      PMA_PASSWORD: ${DB_ROOT_PASSWORD}
-
   # Runs once on `docker compose up`, installs WordPress if not installed yet, then exits.
   wp-setup:
     <<: *wp-cli

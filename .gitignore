@@ -6,12 +6,7 @@
 .claude/
 node_modules/
 
-# QA is generated
-qa/
-
 npm-debug.log*
 test-results/
 playwright-report/
 
-# WordPress runtime: wp-setup reinstalls plugins/themes; only mu-plugins/ is committed
-wp-content/
