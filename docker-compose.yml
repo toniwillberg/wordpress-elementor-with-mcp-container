@@ -8,7 +8,9 @@ x-wp-db-env: &wp-db-env
 x-wp-cli: &wp-cli
   image: wordpress:cli
   user: "33:33"
-  environment: *wp-db-env
+  environment:
+    <<: *wp-db-env
+    WP_CLI_HOME: /tmp   # wp-cli cache dir; default HOME (/) is not writable for user 33
   volumes:
     - wp_core:/var/www/html
     - ./wp-content:/var/www/html/wp-content
