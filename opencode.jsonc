@@ -1,0 +1,38 @@
+{
+  // WordPress MCP (emcp-tools) — served through the Docker stack's wp-cli:
+  //   `docker compose run --rm -T wpcli wp mcp-adapter serve --server=emcp-tools-server --user=siteXadmin`
+  // Site: http://localhost:8080 (see docker-compose.yml / wordpress.env)
+  // Requires the Docker containers to be running; tools appear in opencode as "emcp-tools_*"
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "emcp-tools": {
+        "type": "local",
+        "command": [
+          "docker", "compose", "run", "--rm", "-T", "wpcli",
+          "wp", "mcp-adapter", "serve",
+          "--server=emcp-tools-server",
+          "--user=siteXadmin"
+        ]
+      },
+      // "wordpress": the mcp-adapter plugin's own default server
+      "wordpress": {
+        "type": "local",
+        "command": [
+          "docker", "compose", "run", "--rm", "-T", "wpcli",
+          "wp", "mcp-adapter", "serve",
+          "--server=mcp-adapter-default-server",
+          "--user=siteXadmin"
+        ]
+      },
+      // Playwright MCP — headless-browser QA tools (browser_navigate, browser_click,
+      // browser_snapshot, browser_take_screenshot, ...). Runs in a container with host
+      // networking, so the site at http://localhost:8080 is reachable as on the host.
+      // Screenshots are saved to ./qa/shots. Requires a client restart to take effect.
+      "playwright": {
+        "type": "local",
+        "command": ["docker", "compose", "run", "--rm", "-T", "playwright-mcp"]
+      }
+    }
+  }
+}

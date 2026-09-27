@@ -1,0 +1,185 @@
+x-wp-db-env: &wp-db-env
+  WORDPRESS_DB_HOST: db
+  WORDPRESS_DB_USER: ${DB_USER}
+  WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+  WORDPRESS_DB_NAME: ${DB_NAME}
+  WP_ENVIRONMENT_TYPE: local
+
+x-wp-cli: &wp-cli
+  image: wordpress:cli
+  user: "33:33"
+  environment: *wp-db-env
+  volumes:
+    - wp_core:/var/www/html
+    - ./wp-content:/var/www/html/wp-content
+
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  wordpress:
+    image: wordpress:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      <<: *wp-db-env
+      WORDPRESS_DEBUG: "1"
+    volumes:
+      - wp_core:/var/www/html
+      - ./wp-content:/var/www/html/wp-content   # themes & plugins, editable on your Mac
+    healthcheck:
+      # wp-config.php is written by the entrypoint once the WordPress files are in place
+      test: ["CMD", "test", "-f", "/var/www/html/wp-config.php"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD}
+
+  # Runs once on `docker compose up`, installs WordPress if not installed yet, then exits.
+  wp-setup:
+    <<: *wp-cli
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_healthy
+    env_file: wordpress.env   # site settings
+    environment:
+      <<: *wp-db-env
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if wp core is-installed; then
+          echo "WordPress already installed, skipping core setup."
+        else
+          wp core install \
+            --url="$$WP_URL" \
+            --title="$$WP_TITLE" \
+            --admin_user="$$WP_ADMIN_USER" \
+            --admin_password="$$WP_ADMIN_PASSWORD" \
+            --admin_email="$$WP_ADMIN_EMAIL" \
+            --skip-email
+          if [ "$$WP_LOCALE" != "en_US" ]; then
+            wp language core install "$$WP_LOCALE" --activate
+          fi
+          wp option update blog_public "$$WP_BLOG_PUBLIC"
+          # Pretty permalinks (also required for pretty /wp-json REST URLs)
+          wp rewrite structure '/%postname%/' --hard
+        fi
+        # Remove unwanted plugins
+        for plugin in $$WP_REMOVE_PLUGINS; do
+          if wp plugin is-installed "$$plugin"; then
+            wp plugin uninstall "$$plugin" --deactivate
+          fi
+        done
+        # Install missing plugins and activate them all. Files may already exist in
+        # ./wp-content from an earlier run while the database is fresh.
+        # (entry is a slug, or folder=zip-url)
+        for entry in $$WP_PLUGINS; do
+          plugin="$${entry%%=*}"
+          source="$${entry#*=}"
+          if ! wp plugin is-installed "$$plugin"; then
+            wp plugin install "$$source"
+          fi
+          if wp plugin is-active "$$plugin"; then
+            echo "Plugin $$plugin already active, skipping."
+          else
+            wp plugin activate "$$plugin"
+          fi
+        done
+        # Install and activate the theme
+        if [ -n "$$WP_THEME" ]; then
+          if ! wp theme is-installed "$$WP_THEME"; then
+            wp theme install "$$WP_THEME"
+          fi
+          if wp theme is-active "$$WP_THEME"; then
+            echo "Theme $$WP_THEME already active, skipping."
+          else
+            wp theme activate "$$WP_THEME"
+          fi
+        fi
+        # Comments: defaults for new posts; when closed, also close existing posts
+        wp option update default_comment_status "$$WP_COMMENTS"
+        wp option update default_ping_status "$$WP_COMMENTS"
+        if [ "$$WP_COMMENTS" = "closed" ]; then
+          ids=$$(wp post list --post_type=any --post_status=any --format=ids)
+          if [ -n "$$ids" ]; then
+            wp post update $$ids --comment_status=closed --ping_status=closed
+          fi
+        fi
+        echo "WordPress setup complete."
+
+  # Manual WP-CLI, e.g. `docker compose run --rm wpcli wp plugin list`
+  wpcli:
+    <<: *wp-cli
+    profiles: ["tools"]
+    depends_on:
+      - db
+
+  # Headless-browser QA (Playwright image): screenshots of the live pages and the
+  # design prototype for visual comparison, plus computed-style design audits.
+  # Run: docker compose run --rm qa-browser sh -c "npm ci --no-progress && node capture.js && node audit.js"
+  # (npm ci installs from the committed package-lock.json; shots/reports are regenerated per run.)
+  # The scripts verify site connectivity BEFORE taking any screenshots (preflight).
+  # network_mode: host lets the containerized browser reach http://localhost:8080 directly.
+  qa-browser:
+    image: mcr.microsoft.com/playwright:v1.49.1
+    profiles: ["tools"]
+    depends_on:
+      - wordpress
+    working_dir: /work
+    network_mode: host
+    volumes:
+      - ./qa:/work
+      - ./import:/work/import:ro
+
+  # Playwright MCP — interactive browser QA for AI agents (navigate/click/snapshot/screenshot
+  # via MCP tools). Serves MCP over stdio; the headless browser browses the site through host
+  # networking, so http://localhost:8080 works exactly like on the host. Screenshots land in
+  # ./qa/shots. The design prototype is available at file:///work/import/… within the workspace.
+  # Note: opencode must be restarted after this service is added to an MCP config.
+  playwright-mcp:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    profiles: ["tools"]
+    working_dir: /work
+    network_mode: host
+    volumes:
+      - ./qa/shots:/work/shots
+      - ./import:/work/import:ro
+    command: ["--headless", "--no-sandbox", "--isolated", "--output-dir", "/work/shots"]
+
+volumes:
+  db_data:
+  wp_core:
