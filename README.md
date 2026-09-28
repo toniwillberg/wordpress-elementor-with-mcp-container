@@ -4,6 +4,14 @@ A Dockerized WordPress + Elementor environment pre-wired with **Model Context Pr
 
 The stack uses **free Elementor**. No Elementor Pro or other paid plugins are required.
 
+## Why WordPress, when AI can generate a whole site?
+
+Many companies have their website content creation process built around WordPress.
+
+The biggest bottlenecks in creating WordPress websites have been design work and manual page building. By combining AI design tools with the WordPress + Elementor MCPs, every business owner can now create the website of their dreams.
+
+WordPress itself will eventually become obsolete as more lightweight CMS systems powered by AI tools take over. Until then, this project hopefully helps you design and launch your dream website in no time.
+
 ## What it does
 
 On `docker compose up`, the stack:
@@ -28,9 +36,9 @@ docker compose up -d
 ```
 
 - WordPress: http://localhost:8080
-- Admin login: the user from `wordpress.env` (`WP_ADMIN_USER`), the password from `.env` (`WP_ADMIN_PASSWORD`)
+- Admin login: `WP_ADMIN_USER` from `wordpress.env`, `WP_ADMIN_PASSWORD` from `.env`
 
-You do not need to touch the WordPress admin console yourself while the site is being built — feel free to browse around and watch the progress. A build can easily take several hours, depending on your design.
+You do not need to touch the WordPress admin console yourself while the site is being built — but feel free to browse around and watch the progress. A build can easily take several hours, depending on your design.
 
 Once the site is built, you can take over and tweak it manually in WordPress and Elementor, or keep editing it through the provided MCPs with AI.
 
@@ -40,7 +48,7 @@ Once the site is built, you can take over and tweak it manually in WordPress and
 2. Start the stack and connect your AI harness (see below).
 3. Ask the agent to read the designs in `import/` and build the site with the MCP tools: pages, containers, atomic Elementor widgets, media, navigation, SEO, and more.
 
-The site is built through the Elementor MCP tools — no hand-written HTML/CSS hacks — producing a site a human webmaster can maintain normally in WordPress.
+The site is built through the Elementor MCP tools — no hand-written HTML/CSS hacks — producing a site that a human webmaster can maintain normally in WordPress.
 
 ## Connecting your AI harness
 
@@ -50,7 +58,7 @@ MCP server definitions for opencode are provided in `opencode.jsonc`:
 - **wordpress** — WordPress MCP via mcp-adapter (posts, media, options)
 - **playwright** — Playwright MCP for headless-browser QA (navigate, click, screenshot; screenshots are saved to `qa/shots/`)
 
-The servers are served through the stack's wp-cli:
+The servers run through the stack's wp-cli:
 
 ```bash
 docker compose run --rm -T wpcli wp mcp-adapter serve --server=emcp-tools-server --user=siteXadmin
@@ -74,18 +82,20 @@ Any MCP-capable client can wrap that command as a local MCP server. Restart your
 docker compose run --rm wpcli wp plugin list
 
 # Headless QA (screenshots + design audits)
+# Note: the harness scripts (capture.js, audit.js) are generated per site during
+# the build (see ELEMENTOR-PLAYBOOK.md §5); qa/ is gitignored.
 docker compose --profile tools run --rm qa-browser sh -c "npm ci --no-progress && node capture.js && node audit.js"
 ```
 
 ## Project layout
 
 - `import/` — your design files (HTML exports, prototypes, assets)
-- `qa/` — Playwright QA harness, screenshots (`qa/shots/`) and reports
+- `qa/` — Playwright QA harness, screenshots (`qa/shots/`) and reports (gitignored; the harness scripts are generated during the build)
 - `wp-content/` — themes, plugins and mu-plugins; bind-mounted and editable on your host
 - `ELEMENTOR-PLAYBOOK.md` — the tested build sequence and tool-bug workarounds (read this before any Elementor MCP work)
 - `AGENTS.md` — instructions for AI agents working in this repo
 
-## Monitoring the progress
+## Monitoring progress
 
 While the site is being built, you can watch the work in the WordPress admin:
 
@@ -98,13 +108,13 @@ While the site is being built, you can watch the work in the WordPress admin:
 
 ## Example build
 
-Once the container is up, import your designs and plan the website build with your AI harness.
+Once the stack is up, import your designs and plan the website build with your AI harness.
 
-In this example, I used Claude Design to create a website with one long main page, a blog index page and a blog article page. I exported everything from Claude Design and asked it to document the design properly so another AI could rebuild it in WordPress and Elementor — that documentation makes it much easier for the AI to follow the instructions. Remember to export the images and any other assets as well.
+In this example, I used Claude Design to create a website with one long main page, a blog index page and a blog article page. I exported everything from Claude Design and asked it to document the design properly so another AI could rebuild it in WordPress and Elementor — that documentation makes it much easier for the AI to follow the design. Remember to export the images and any other assets as well.
 
-I then asked the agent: *"I have added my designs to the import folder, plan how you can build it on my WP+Elementor setup."* It inspected the import folder, asked a few questions about the site, and presented a build plan. After I answered the questions and approved the plan, it built the site. (At the time of writing, I use opencode with GLM-5, "default" variant.)
+I then asked the agent: *"I have added my designs to the import folder, plan how you can build them on my WP+Elementor setup."* It inspected the import folder, asked a few questions about the site, and presented a build plan. After I answered the questions and approved the plan, it built the site. (At the time of writing, I use opencode with GLM-5, "default" variant.)
 
-For this example design, the build used about 280K tokens, cost about 10 USD, and took about 30 minutes.
+For this example design, the build used about 280K tokens, cost roughly 10 USD, and took about 30 minutes.
 
 ## Stop / reset
 
@@ -112,3 +122,7 @@ For this example design, the build used about 280K tokens, cost about 10 USD, an
 docker compose down      # stop (data is kept in volumes)
 docker compose down -v  # stop and wipe the DB + WordPress core
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
