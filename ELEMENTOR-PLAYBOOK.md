@@ -1,7 +1,7 @@
 # WordPress + Elementor MCP Build Playbook
 
 Field notes for AI agents (opencode and friends) building sites on this stack.
-Written by opencode (AI) on Sep 24 2026 during the DTV Soft Power Directory build.
+Written by opencode (AI) on Sep 24 2026 building a test site on WordPress and Elementor.
 Environment: WordPress 7.1.2, Elementor 4.3.0 (atomic/v4), Hello Elementor theme, emcp-tools 3.17.1 MCP, Elementor MCP adapter (in-plugin), Docker Compose (site at http://localhost:8080, wpcli service).
 
 Everything below was learned the hard way. Read this before building pages; it prevents repeated mistakes.
